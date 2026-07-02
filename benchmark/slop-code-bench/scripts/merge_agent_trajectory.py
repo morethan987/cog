@@ -3,8 +3,8 @@
 Usage:
     python scripts/merge_agent_trajectory.py outputs/deepseek/claude_code-2.0.51_cog-guided_cog_20260701T1732
 
-The script expects <experiment_dir>/file_backup/checkpoint_*/agent/stdout.jsonl
-and writes <experiment_dir>/file_backup/trajectory.txt.
+The script expects <experiment_dir>/**/checkpoint_*/agent/stdout.jsonl
+and writes <experiment_dir>/trajectory.txt.
 """
 
 from __future__ import annotations
@@ -189,43 +189,34 @@ def _natural_sort_key(name: str) -> list[Any]:
 
 
 def merge_trajectory(experiment_dir: Path) -> Path:
-    file_backup = experiment_dir / "file_backup"
-    if not file_backup.is_dir():
-        raise FileNotFoundError(f"Expected {file_backup} to exist")
-
-    checkpoint_dirs = sorted(
-        [d for d in file_backup.iterdir() if d.is_dir() and d.name.startswith("checkpoint_")],
-        key=lambda d: _natural_sort_key(d.name),
+    # Recursively find all checkpoint_*/agent/stdout.jsonl files.
+    jsonl_paths = sorted(
+        experiment_dir.rglob("checkpoint_*/agent/stdout.jsonl"),
+        key=lambda p: _natural_sort_key(str(p.relative_to(experiment_dir))),
     )
-    if not checkpoint_dirs:
-        raise FileNotFoundError(f"No checkpoint_* directories found under {file_backup}")
+    if not jsonl_paths:
+        raise FileNotFoundError(
+            f"No checkpoint_*/agent/stdout.jsonl files found under {experiment_dir}"
+        )
 
     output_path = experiment_dir / "trajectory.txt"
 
     with open(output_path, "w", encoding="utf-8") as out:
         out.write(f"Experiment: {experiment_dir.name}\n")
-        out.write(f"Checkpoints: {len(checkpoint_dirs)}\n")
-        out.write(f"Generated from: {file_backup.name}/checkpoint_*\n")
+        out.write(f"Checkpoints: {len(jsonl_paths)}\n")
+        out.write("Generated from: */checkpoint_*/agent/stdout.jsonl\n")
         out.write("\n")
 
-        for checkpoint_dir in checkpoint_dirs:
-            jsonl_path = checkpoint_dir / "agent" / "stdout.jsonl"
-            if not jsonl_path.exists():
-                out.write(f"\n{'=' * 80}\n")
-                out.write(f"CHECKPOINT START: {checkpoint_dir.name}\n")
-                out.write(f"MISSING: {jsonl_path}\n")
-                out.write(f"CHECKPOINT END: {checkpoint_dir.name}\n")
-                out.write(f"{'=' * 80}\n")
-                continue
-
+        for jsonl_path in jsonl_paths:
+            checkpoint_dir = jsonl_path.parent.parent
             sections = _process_jsonl(jsonl_path)
             out.write(f"\n{'=' * 80}\n")
-            out.write(f"CHECKPOINT START: {checkpoint_dir.name}\n")
+            out.write(f"CHECKPOINT START: {checkpoint_dir.relative_to(experiment_dir)}\n")
             out.write(f"Source: {jsonl_path}\n")
             out.write(f"{'=' * 80}\n\n")
             out.write("\n\n---\n\n".join(sections))
             out.write(f"\n\n{'=' * 80}\n")
-            out.write(f"CHECKPOINT END: {checkpoint_dir.name}\n")
+            out.write(f"CHECKPOINT END: {checkpoint_dir.relative_to(experiment_dir)}\n")
             out.write(f"Lines processed: {len(sections)}\n")
             out.write(f"{'=' * 80}\n")
 
@@ -239,7 +230,7 @@ def main() -> None:
     parser.add_argument(
         "experiment_dir",
         type=Path,
-        help="Experiment directory containing file_backup/checkpoint_*/agent/stdout.jsonl",
+        help="Experiment directory containing */checkpoint_*/agent/stdout.jsonl",
     )
     args = parser.parse_args()
 
