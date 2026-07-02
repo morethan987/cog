@@ -9,7 +9,6 @@ model:
 
 thinking: disabled
 pass_policy: core-cases
-concurrent_evaluation: true
 
 # Dev set: 5 problems, 23 checkpoints, 2 Easy / 2 Medium / 1 Hard
 problems:

@@ -9,7 +9,6 @@ model:
 
 thinking: disabled
 pass_policy: core-cases
-concurrent_evaluation: true
 
 # Smoke test: 1 problem, 4 checkpoints, Easy
 problems:

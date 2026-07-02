@@ -11,4 +11,4 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 CONFIG="${1:-deepseek_run_smoke.yaml}"
-exec uv run slop-code run --config "$CONFIG" cog=true
+exec uv run slop-code run --config "$CONFIG" --no-evaluate cog=true

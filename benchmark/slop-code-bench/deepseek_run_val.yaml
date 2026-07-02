@@ -9,7 +9,6 @@ model:
 
 thinking: disabled
 pass_policy: core-cases
-concurrent_evaluation: true
 
 # Validation set: 5 problems, 21 checkpoints, 2 Easy / 2 Medium / 1 Hard
 # Must be kept unseen during development to avoid overfitting.

@@ -9,7 +9,6 @@ model:
 
 thinking: disabled
 pass_policy: core-cases
-concurrent_evaluation: true
 
 # Full benchmark: all 36 problems, 196 checkpoints.
 # This is the final reported set; it should only be run after dev/val/test tuning is done.
