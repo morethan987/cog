@@ -596,22 +596,32 @@ claude code 会自动读取 workspace 根目录的 `CLAUDE.md` / `AGENTS.md`（�
 ```jinja
 Implement a program that 100% solves the specification.
 
-You MUST use the `cog` cognitive model CLI at `/usr/local/bin/cog` throughout this task. `cog` maintains a persistent model of the codebase in `.cog/cog.db`. Use it to record what you learn so you do not rebuild your understanding from scratch each time the specification changes.
+You MUST use the `cog` cognitive model CLI at `/usr/local/bin/cog` throughout this task. `cog` maintains a persistent model of the codebase in `.cog/cog.db`. The model has THREE paths and you MUST use all three on every checkpoint:
+
+1. ASCEND (code space to latent space): `cog sync` then `cog query` / `cog impact` / `cog trace` / `cog index` to build and read the structural model.
+2. REASON (horizontal path within the latent space): `cog experiment try` to test a planned change in an in-memory sandbox BEFORE writing code, then read its risk and blind spots.
+3. DESCEND (latent space to code space): edit code, then `cog sync` + `cog verify` + record corrections.
+
+The REASON path is mandatory. Do NOT skip straight from reading the model to writing code. Testing your plan with `cog experiment` first is what catches contradictions and blind spots before they become bugs.
 
 {% if not is_continuation -%}
 This is the first checkpoint. Follow this exact order:
-1. `cog sync --init` to create `.cog/cog.db`.
-2. `cog index --uncovered` to see what exists without knowledge.
-3. Before writing any code, run `cog query <entity>` and `cog impact <entity>` on the entities you plan to touch.
-4. As you learn non-obvious contracts, risks, or design decisions, record them with `cog assert <entity> --kind <contract|intent|invariant|fragility|correction> --claim "<one sentence>" --grounds "code:<entity>"`.
-5. Use a virtual environment and ensure a `requirements.txt` is present with any dependencies you need.
+1. ASCEND: `cog sync --init` to create `.cog/cog.db`, then `cog index --uncovered`.
+2. SURVEY: `cog query <entity>`, `cog impact <entity>`, and `cog trace <entity>` on the entities you will touch.
+3. REASON: For every non-trivial change, run `cog experiment try <entity> --kind <kind> --claim "<planned change>" --grounds "plan:<desc>" --desc "<desc>"`. Read the risk score and blind entities. Revise the plan if risk is high. For multi-step plans use `cog experiment start` + `hypothesize` + `evaluate` + `commit` or `discard`.
+4. SCOUT: Read the actual code to confirm your plan survives details the model does not hold.
+5. DESCEND: Write the code. Then `cog sync` and `cog verify --scan`.
+6. RECORD: `cog assert` contracts, invariants, fragilities, intent. `cog retract` any claim the code invalidated.
+7. Use a virtual environment and ensure a `requirements.txt` is present with any dependencies you need.
 {% else -%}
-This checkpoint extends prior work. The cognitive model in `.cog/cog.db` already exists. Follow this exact order:
-1. `cog sync` to refresh the model.
-2. `cog query <entity>` and `cog impact <entity>` the entities you will modify before editing.
-3. Update or retract stale assertions with `cog retract <id> --reason "<why>"` when prior assumptions are invalidated.
-4. Run `cog sync` and `cog verify --scan` after changes.
-5. Keep using the same virtual environment; update `requirements.txt` with any new dependencies.
+This checkpoint extends prior work. The cognitive model already exists. Follow this exact order:
+1. ASCEND: `cog sync` to refresh the model, then `cog query` the entities you will modify.
+2. SURVEY: `cog impact <entity>` and `cog trace <entity>` on the entities you will touch.
+3. REASON: `cog experiment try <entity> --kind <kind> --claim "<planned change>" --grounds "plan:<desc>" --desc "<desc>"`. Evaluate before editing. Revise if risk is high.
+4. SCOUT: Read the code to confirm assumptions.
+5. DESCEND: Edit the code. Then `cog sync` and `cog verify --scan`.
+6. RECORD: `cog assert --kind correction` for what changed. `cog retract <id>` for stale claims. `cog recover` if a cascade left assertions uncertain.
+7. Keep using the same virtual environment; update `requirements.txt` as needed.
 {% endif -%}
 
 Rules for `cog`:
@@ -619,6 +629,7 @@ Rules for `cog`:
 - One assertion per sentence.
 - Entity names are `::-qualified` (e.g. `backup_scheduler::parse_schedule`).
 - Ground assertions with `code:<entity>` or `test:<path>` when possible.
+- Link entities with `cog depend <a> --on <b> --kind calls|uses` when you find a relationship sync missed.
 - Never delete or reset `.cog/cog.db`.
 - `cog` does not capture runtime behavior; always verify with tests.
 - When stuck, run `cog next`.
@@ -627,6 +638,8 @@ Rules for `cog`:
 Your task is:
 {{ spec.strip() }}
 ```
+
+**三条路径的设计依据**：cog 的认知模型有三条路径——上升（代码空间→潜空间，sync/query/impact/trace）、水平推理（潜空间内，experiment 沙盘推演）、下降协议（潜空间→代码空间，SCOUT/PROBE/COMPLETE）。初版 prompt 只覆盖了上升和下降，agent 完全不用 `experiment`（实测 0 次）。改为强制三路径后，agent 必须在写代码前先用 `cog experiment try` 测试计划，补齐水平推理路径。
 
 #### 不预设注入强度对照
 

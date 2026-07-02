@@ -27,33 +27,63 @@ logger = get_logger(__name__)
 
 COG_SYSTEM_PROMPT = """## Required cognitive tool: `cog`
 
-You have access to `cog` at `/usr/local/bin/cog`. It is a persistent cognitive model of the codebase, stored in `.cog/cog.db`. You are required to use it to record and reason about the code you are working on, especially across checkpoints.
+You have access to `cog` at `/usr/local/bin/cog`. It maintains a persistent
+cognitive model of the codebase in `.cog/cog.db`. The model is your external
+memory: use it to reason about code BEFORE you change it, so you do not rebuild
+understanding from scratch each time the specification changes.
 
-What `cog` records:
-- `contract`: what a piece of code promises to callers
-- `intent`: why a non-obvious design choice was made
+The model has THREE paths. You MUST use all three on every checkpoint:
+
+### 1. Ascend (code space to latent space)
+Build the structural model and read what it knows:
+- `cog sync --init` (first time) or `cog sync` (refresh after code changes).
+- `cog index --uncovered` to see what has no recorded knowledge yet.
+- `cog query <entity>`, `cog impact <entity>`, `cog trace <entity>` to read an
+  entity, its blast radius, and its full dependency chain.
+
+### 2. Reason (within the latent space) -- THE HORIZONTAL PATH
+Before writing code for any non-trivial change, test your plan in an in-memory
+sandbox that does NOT touch the real model:
+- `cog experiment try <entity> --kind <kind> --claim "<planned change>" --grounds "plan:<desc>" --desc "<desc>"`
+- Read the evaluation: risk score (HIGH/MEDIUM/LOW), contradictions, and blind
+  entities (downstream entities with zero recorded knowledge -- your unknowns).
+- If risk is high or blind spots exist, REVISE the plan and re-evaluate before
+  touching code. For multi-step plans use the full cycle:
+  `cog experiment start <entity>` then `hypothesize` each change then `evaluate`
+  then `commit` (apply to the real model) or `discard`.
+
+This reasoning path is what makes the model worth building. Without it you are
+just recording notes; with it you catch contradictions and blind spots BEFORE
+they become bugs in code.
+
+### 3. Descend (latent space to code space) -- the descent protocol
+Implement the change in code, then reconcile the model with reality:
+- Edit the code.
+- `cog sync` to detect structural drift between model and code.
+- `cog verify --scan` to find stale or unmodeled entities.
+- `cog assert <entity> --kind correction --claim "<what changed and why>" --grounds "code:<entity>"`
+  for changes that invalidate old assumptions.
+- `cog retract <id> --reason "<why>"` for any claim the code proved wrong.
+- `cog recover` to restore assertions that went uncertain after a cascade.
+
+### Assertion kinds
+- `contract`: what code promises callers
+- `intent`: why a non-obvious design choice exists
 - `invariant`: a property that must always hold, or a bug results
-- `fragility`: a known risk or trap that is not visible in the code
+- `fragility`: a known risk not visible in the code
 - `correction`: a mistake that was made and how it was fixed
 
-Your workflow on every checkpoint:
-
-1. BUILD: `cog sync --init` (first time) or `cog sync` (refresh). Then `cog index --uncovered` to see what lacks knowledge.
-2. ENRICH: Before changing code, run `cog query <entity>` and `cog impact <entity>` on the entities you plan to touch. Record what you learn with `cog assert <entity> --kind <kind> --claim "<one sentence>" --grounds "code:<entity>"`.
-3. REASON: For changes that affect multiple entities or public interfaces, run `cog experiment try <entity> --kind <kind> --claim "<plan>" --grounds "plan:<desc>" --desc "<desc>"`. Evaluate the risk before editing code.
-4. DESCEND: After editing, run `cog sync` and `cog verify --scan`. Record corrections with `cog assert --kind correction` and retract stale claims with `cog retract <id> --reason "<why>"`.
-
-When you are unsure what to do next, run `cog next`. It reads the workflow state and tells you whether to survey, enrich, reason, or descend.
-
-Rules:
+### Guidance
+- When unsure what to do next, run `cog next`.
 - Record WHY, not WHAT. The code already states what it does.
 - One assertion per sentence.
 - Entity names are `::-qualified` (e.g. `backup_scheduler::parse_schedule`).
 - Ground assertions with `code:<entity>` or `test:<path>` when possible.
+- Link entities with `cog depend <a> --on <b> --kind calls|uses` when you find a
+  relationship sync did not capture.
 - Never delete or reset `.cog/cog.db`.
 - `cog` does not capture runtime behavior; always verify with tests.
-- Do not over-model trivial code. Ask: "If this assumption changed, would it cause a hard-to-find bug?"
-- Do not use `cog` to avoid reading code or running tests."""
+- Do not over-model trivial code. Do not use `cog` to avoid reading code."""
 
 
 def _quote_for_shell(value: str) -> str:
