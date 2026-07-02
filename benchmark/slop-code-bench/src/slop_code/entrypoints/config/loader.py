@@ -75,6 +75,7 @@ Implement the change in code, then reconcile the model with reality:
 
 ### Guidance
 - When unsure what to do next, run `cog next`.
+- If you are unsure how a command works or what flags it takes, run `cog help` or `cog <command> --help`.
 - Record WHY, not WHAT. The code already states what it does.
 - One assertion per sentence.
 - Entity names are `::-qualified` (e.g. `backup_scheduler::parse_schedule`).
