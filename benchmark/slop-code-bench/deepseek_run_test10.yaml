@@ -9,6 +9,7 @@ model:
 
 thinking: disabled
 pass_policy: core-cases
+concurrent_evaluation: true
 
 # Medium-scale test set: 10 problems, 51 checkpoints, 4 Easy / 4 Medium / 2 Hard
 # Disjoint from smoke, dev, and val. Used as a final pre-full checkpoint.
